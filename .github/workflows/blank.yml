@@ -1,24 +1,46 @@
 name: Build APK
+
 on:
   push:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - run: unzip -oq "$(ls *.zip | sort -V | tail -1)" -d proj
+
+      - name: Extract project
+        run: |
+          ZIP_FILE="$(ls *.zip | sort -V | tail -1)"
+          unzip -oq "$ZIP_FILE" -d proj
+
+          PROJECT_DIR="$(find proj -type f \( -name settings.gradle -o -name settings.gradle.kts \) -printf '%h\n' | head -1)"
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Gradle project not found!"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.9
           cache-disabled: true
-      - run: gradle assembleDebug --no-daemon
-        working-directory: proj
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug --no-daemon
+
       - uses: actions/upload-artifact@v4
         with:
           name: MotionStudio-APK
-          path: proj/app/build/outputs/apk/debug/app-debug.apk
+          path: proj/**/app/build/outputs/apk/debug/app-debug.apk
